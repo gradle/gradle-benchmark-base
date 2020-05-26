@@ -1,0 +1,88 @@
+# Performance scenario for testing incremental build performance.
+#
+# Usage: (See also README.md)
+#
+# 1. Create a project-specific scenario file in the parent directory.
+# 2. Include this file by adding the following in the project-specific scenario file:
+# 
+#     include required(file("gradle-benchmark-base/incremental-base.conf"))
+#
+# 3. Also set this in the project-specific scenario file:
+#
+#     file-to-change = ...
+#     tasks-to-measure = ["..."]
+#
+# 4. Leave the rest untouched
+# 5. Run some of the following scenarios:
+#
+#    - noOptimizations
+#    - onlyFileSystemWatching
+#    - onlyConfigurationCache
+#    - allOptimizations
+#
+# --------------------------------------------------------------
+
+tasks-to-measure = ["classes"]
+
+base {
+    clear-project-cache-before = SCENARIO
+    clear-instant-execution-state-before = SCENARIO
+
+    gradle-args = [
+        "-Dorg.gradle.workers.max=8",
+        "--init-script", "../gradle-benchmark-base/scans.init.gradle",
+        "--no-scan",
+        "--no-build-cache",
+    ]
+
+    measured-build-ops = [
+        "org.gradle.api.internal.artifacts.configurations.ResolveConfigurationDependenciesBuildOperationType",
+        "org.gradle.api.internal.artifacts.transform.DefaultTransformer$FingerprintTransformInputsOperation",
+        "org.gradle.internal.execution.steps.CaptureStateBeforeExecutionStep$Operation",
+        "org.gradle.caching.internal.operations.BuildCacheArchivePackBuildOperationType",
+        "org.gradle.caching.internal.operations.BuildCacheArchiveUnpackBuildOperationType",
+        "org.gradle.internal.execution.steps.SnapshotOutputsStep$Operation",
+        "org.gradle.api.internal.tasks.execution.ExecuteTaskActionBuildOperationType",
+        "org.gradle.api.internal.tasks.execution.ExecuteTaskBuildOperationType",
+    ]
+}
+
+enableConfigurationCache = [
+    "--configuration-cache=warn"
+]
+
+enableFileSystemWatching = [
+    "--watch-fs"
+]
+
+noOptimizations = ${base} {
+    title = "0 – Baseline"
+    tasks = tasks-to-measure
+
+    # Mutate the given source file between builds
+    apply-non-abi-change-to = ${file-to-change}
+
+    # Alternatively you can try these mutators, too:
+    # apply-abi-change-to = ${file-to-change}
+    # apply-android-resource-value-change-to = ${file-to-change}
+}
+
+onlyFileSystemWatching = ${noOptimizations} {
+    title = "2 – FS watching"
+    gradle-args = ${noOptimizations.gradle-args} ${enableFileSystemWatching}
+}
+
+onlyConfigurationCache = ${noOptimizations} {
+    title = "5 – Configuration cache"
+    gradle-args = ${noOptimizations.gradle-args} ${enableConfigurationCache}
+}
+
+allOptimizations = ${noOptimizations} {
+    title = "9 – All optimizations"
+    gradle-args = ${noOptimizations.gradle-args} ${enableConfigurationCache} ${enableFileSystemWatching}
+}
+
+configurationTime = ${base} {
+    tasks = ["help"]
+    warm-ups = 10
+}

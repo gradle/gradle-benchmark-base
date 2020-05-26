@@ -1,0 +1,3 @@
+[submodule "gradle-profiler"]
+	path = gradle-profiler
+	url = https://github.com/gradle/gradle-profiler
